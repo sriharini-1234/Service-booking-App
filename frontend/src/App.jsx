@@ -1,26 +1,185 @@
 import { useEffect, useState } from 'react'
-import { Link, Routes, Route, useNavigate } from 'react-router-dom'
+import { Link, Routes, Route, useNavigate, Navigate } from 'react-router-dom'
+import AdminDashboard from './AdminDashboard'
 import { request, getToken } from './api'
 
+// function Auth({ mode, onAuth }) {
+//   const [form, setForm] = useState({name:'', email:'', password:''}), [error,setError]=useState('')
+//   const nav = useNavigate()
+//   async function submit(e){
+//     e.preventDefault(); setError('')
+//     try {
+//       const data = await request(mode === 'register' ? '/auth/register' : '/auth/login',
+//         {method:'POST', body:JSON.stringify(form)})
+//       localStorage.setItem('token', data.access_token); localStorage.setItem('user', JSON.stringify(data.user))
+//       onAuth(data.user); nav('/')
+//     } catch(err){ setError(err.message) }
+//   }
+//   return <section className="auth-card"><span className="eyebrow">CAREBOOK ACCOUNT</span><h1>{mode==='register'?'Create your account':'Welcome back'}</h1><p className="muted">Book and manage your appointments in one place.</p>
+//     <form onSubmit={submit}>{mode==='register'&&<label>Full name<input required minLength="2" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your name"/></label>}
+//     <label>Email address<input required type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="you@example.com"/></label>
+//     <label>Password<input required minLength="8" type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="At least 8 characters"/></label>
+//     {error&&<p className="error">{error}</p>}<button className="primary full">{mode==='register'?'Create account':'Sign in'}</button></form>
+//     <p className="muted center">{mode==='register'?'Already have an account?':'New to CareBook?'} <Link to={mode==='register'?'/login':'/register'}>{mode==='register'?'Sign in':'Create account'}</Link></p>
+//   </section>
+// }
+
 function Auth({ mode, onAuth }) {
-  const [form, setForm] = useState({name:'', email:'', password:''}), [error,setError]=useState('')
-  const nav = useNavigate()
-  async function submit(e){
-    e.preventDefault(); setError('')
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: ''
+  });
+
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const nav = useNavigate();
+
+  async function submit(e) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
     try {
-      const data = await request(mode === 'register' ? '/auth/register' : '/auth/login',
-        {method:'POST', body:JSON.stringify(form)})
-      localStorage.setItem('token', data.access_token); localStorage.setItem('user', JSON.stringify(data.user))
-      onAuth(data.user); nav('/')
-    } catch(err){ setError(err.message) }
+      let body;
+      let headers = {};
+
+      if (mode === 'register') {
+        // Registration sends JSON to FastAPI
+        body = JSON.stringify(form);
+        headers['Content-Type'] = 'application/json';
+      } else {
+        // OAuth2 login expects form data
+        body = new URLSearchParams();
+        body.append('username', form.email);
+        body.append('password', form.password);
+
+        headers['Content-Type'] =
+          'application/x-www-form-urlencoded';
+      }
+
+      const data = await request(
+        mode === 'register'
+          ? '/auth/register'
+          : '/auth/login',
+        {
+          method: 'POST',
+          headers,
+          body
+        }
+      );
+
+      if (!data.access_token || !data.user) {
+        throw new Error('Invalid response from server');
+      }
+
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      onAuth(data.user);
+      nav('/');
+
+    } catch (err) {
+      console.error('Authentication failed:', err);
+
+      setError(
+        typeof err.message === 'string'
+          ? err.message
+          : 'Unable to authenticate. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
   }
-  return <section className="auth-card"><span className="eyebrow">CAREBOOK ACCOUNT</span><h1>{mode==='register'?'Create your account':'Welcome back'}</h1><p className="muted">Book and manage your appointments in one place.</p>
-    <form onSubmit={submit}>{mode==='register'&&<label>Full name<input required minLength="2" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your name"/></label>}
-    <label>Email address<input required type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="you@example.com"/></label>
-    <label>Password<input required minLength="8" type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="At least 8 characters"/></label>
-    {error&&<p className="error">{error}</p>}<button className="primary full">{mode==='register'?'Create account':'Sign in'}</button></form>
-    <p className="muted center">{mode==='register'?'Already have an account?':'New to CareBook?'} <Link to={mode==='register'?'/login':'/register'}>{mode==='register'?'Sign in':'Create account'}</Link></p>
-  </section>
+
+  return (
+    <section className="auth-card">
+      <span className="eyebrow">CAREBOOK ACCOUNT</span>
+
+      <h1>
+        {mode === 'register'
+          ? 'Create your account'
+          : 'Welcome back'}
+      </h1>
+
+      <p className="muted">
+        Book and manage your appointments in one place.
+      </p>
+
+      <form onSubmit={submit}>
+        {mode === 'register' && (
+          <label>
+            Full name
+            <input
+              required
+              minLength="2"
+              value={form.name}
+              onChange={e =>
+                setForm({ ...form, name: e.target.value })
+              }
+              placeholder="Your name"
+            />
+          </label>
+        )}
+
+        <label>
+          Email address
+          <input
+            required
+            type="email"
+            value={form.email}
+            onChange={e =>
+              setForm({ ...form, email: e.target.value })
+            }
+            placeholder="you@example.com"
+          />
+        </label>
+
+        <label>
+          Password
+          <input
+            required
+            minLength="8"
+            type="password"
+            value={form.password}
+            onChange={e =>
+              setForm({ ...form, password: e.target.value })
+            }
+            placeholder="At least 8 characters"
+          />
+        </label>
+
+        {error && (
+          <p className="error">{error}</p>
+        )}
+
+        <button
+          className="primary full"
+          type="submit"
+          disabled={loading}
+        >
+          {loading
+            ? 'Please wait...'
+            : mode === 'register'
+              ? 'Create account'
+              : 'Sign in'}
+        </button>
+      </form>
+
+      <p className="muted center">
+        {mode === 'register'
+          ? 'Already have an account?'
+          : 'New to CareBook?'}
+
+        {' '}
+
+        <Link to={mode === 'register' ? '/login' : '/register'}>
+          {mode === 'register' ? 'Sign in' : 'Create account'}
+        </Link>
+      </p>
+    </section>
+  );
 }
 
 function Dashboard({user}) {
@@ -56,10 +215,95 @@ function Dashboard({user}) {
   </main>
 }
 
-export default function App(){
-  const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('user'))}catch{return null}})
-  function logout(){localStorage.removeItem('token');localStorage.removeItem('user');setUser(null)}
-  return <><header className="topbar"><Link className="brand" to="/"><span className="brand-icon">✚</span>care<span>book</span></Link><nav><Link to="/">Appointments</Link>{user?<><span className="user-chip">{user.name}</span><button className="nav-button" onClick={logout}>Sign out</button></>:<><Link to="/login">Sign in</Link><Link className="nav-cta" to="/register">Get started</Link></>}</nav></header>
-    <Routes><Route path="/" element={<Dashboard user={user}/>}/><Route path="/login" element={<Auth mode="login" onAuth={setUser}/>}/><Route path="/register" element={<Auth mode="register" onAuth={setUser}/>}/></Routes>
-    <footer><span>© 2026 CareBook</span><span>Appointments made simple.</span></footer></>
+// export default function App(){
+//   const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('user'))}catch{return null}})
+//   function logout(){localStorage.removeItem('token');localStorage.removeItem('user');setUser(null)}
+//   return <><header className="topbar"><Link className="brand" to="/"><span className="brand-icon">✚</span>care<span>book</span></Link><nav><Link to="/">Appointments</Link>{user?<><span className="user-chip">{user.name}</span><button className="nav-button" onClick={logout}>Sign out</button></>:<><Link to="/login">Sign in</Link><Link className="nav-cta" to="/register">Get started</Link></>}</nav></header>
+//     <Routes><Route path="/" element={<Dashboard user={user}/>}/><Route path="/login" element={<Auth mode="login" onAuth={setUser}/>}/><Route path="/register" element={<Auth mode="register" onAuth={setUser}/>}/></Routes>
+//     <footer><span>© 2026 CareBook</span><span>Appointments made simple.</span></footer></>
+// }
+
+export default function App() {
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user'))
+    } catch {
+      return null
+    }
+  })
+
+  function logout() {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setUser(null)
+  }
+
+  return (
+    <>
+      <header className="topbar">
+        <Link className="brand" to="/">
+          <span className="brand-icon">✚</span>
+          care<span>book</span>
+        </Link>
+
+        <nav>
+          <Link to="/">Appointments</Link>
+
+          {user ? (
+            <>
+              {user.role === 'admin' && (
+                <Link to="/admin">Admin Dashboard</Link>
+              )}
+
+              <span className="user-chip">{user.name}</span>
+
+              <button className="nav-button" onClick={logout}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login">Sign in</Link>
+              <Link className="nav-cta" to="/register">
+                Get started
+              </Link>
+            </>
+          )}
+        </nav>
+      </header>
+
+      <Routes>
+        <Route
+          path="/"
+          element={<Dashboard user={user} />}
+        />
+
+        <Route
+          path="/admin"
+          element={
+            user?.role === 'admin'
+              ? <AdminDashboard user={user} />
+              : <Navigate to="/" replace />
+          }
+        />
+
+        <Route
+          path="/login"
+          element={<Auth mode="login" onAuth={setUser} />}
+        />
+
+        <Route
+          path="/register"
+          element={<Auth mode="register" onAuth={setUser} />}
+        />
+      </Routes>
+
+      <footer>
+        <span>© 2026 CareBook</span>
+        <span>Appointments made simple.</span>
+      </footer>
+    </>
+  )
 }
+
+

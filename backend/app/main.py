@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.db import Base, engine, get_db
 from app import models, schemas
 from app.security import hash_password, verify_password, create_access_token, get_current_user, require_admin
-
+from fastapi.security import OAuth2PasswordRequestForm
 Base.metadata.create_all(bind=engine)
 
 # Demo data makes the application usable immediately after the first run.
@@ -44,7 +44,10 @@ seed_demo_data()
 
 app = FastAPI(title="Service Booking API", version="1.0.0",
               description="Appointment booking API with customer and admin roles.")
-app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_origin],
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
@@ -60,13 +63,36 @@ def register(data: schemas.RegisterIn, db: Session = Depends(get_db)):
     db.add(user); db.commit(); db.refresh(user)
     return {"access_token": create_access_token(user.id), "user": user}
 
+# @app.post("/auth/login", response_model=schemas.TokenOut)
+# def login(data: schemas.LoginIn, db: Session = Depends(get_db)):
+#     user = db.query(models.User).filter(func.lower(models.User.email) == data.email.lower()).first()
+#     if not user or not verify_password(data.password, user.password_hash):
+#         raise HTTPException(401, "Incorrect email or password")
+#     return {"access_token": create_access_token(user.id), "user": user}
 @app.post("/auth/login", response_model=schemas.TokenOut)
-def login(data: schemas.LoginIn, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(func.lower(models.User.email) == data.email.lower()).first()
-    if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(401, "Incorrect email or password")
-    return {"access_token": create_access_token(user.id), "user": user}
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    email = form_data.username.lower()
 
+    user = db.query(models.User).filter(
+        func.lower(models.User.email) == email
+    ).first()
+
+    if not user or not verify_password(
+        form_data.password,
+        user.password_hash
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password"
+        )
+
+    return {
+        "access_token": create_access_token(user.id),
+        "user": user
+    }
 @app.get("/services", response_model=list[schemas.ServiceOut])
 def list_services(db: Session = Depends(get_db)):
     return db.query(models.Service).filter(models.Service.active == True).order_by(models.Service.name).all()
